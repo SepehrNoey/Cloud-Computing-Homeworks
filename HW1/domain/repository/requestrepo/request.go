@@ -6,8 +6,14 @@ import (
 	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/model"
 )
 
+type GetCommand struct {
+	ID              *int
+	Status          *string
+	IsMailAttempted *bool
+}
+
 type Repository interface {
 	Create(ctx context.Context, req model.Request) error
 	Update(ctx context.Context, id int, updatedReq model.Request) error
-	Get(ctx context.Context, id int) *model.Request
+	Get(ctx context.Context, cmd GetCommand) []model.Request
 }

@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -40,8 +40,6 @@ func NewRecognizeSongHandler(reqRepo requestrepo.Repository, songRepo songrepo.R
 }
 
 func (h *RecognizeSongHandler) ReadAndRecognize() {
-	log.SetOutput(h.logFile)
-
 	msgs, err := h.channel.Consume(
 		h.queue.Name,
 		"",
@@ -52,7 +50,7 @@ func (h *RecognizeSongHandler) ReadAndRecognize() {
 		nil,
 	)
 	if err != nil {
-		log.Printf("failed to register a consumer on channel: %s\n", err.Error())
+		Log(h.logFile, err.Error())
 		return
 	}
 
@@ -62,56 +60,90 @@ func (h *RecognizeSongHandler) ReadAndRecognize() {
 		reqIDStr := string(msg.Body)
 		id, err := strconv.Atoi(reqIDStr)
 		if err != nil {
-			log.Printf("failed to convert message body to integer as request ID: %s\n", err.Error())
+			Log(h.logFile, err.Error())
 			cancel()
 			return
 		}
 
-		songData := h.ReadSongFromObjectStorage(ctx, id)
-		if songData == nil {
+		songData, err := h.ReadSongFromObjectStorage(ctx, id)
+		if err != nil {
+			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID(err.Error(), id))
 			cancel()
 			continue
 		}
 
-		song := h.DecodeBase64(songData.SongDataBase64, id)
-		if song == nil {
+		song, err := h.DecodeBase64(songData.SongDataBase64, id)
+		if err != nil {
+			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID(err.Error(), id))
 			cancel()
 			continue
 		}
 
-		res := h.RequestToShazam(song, songData.SongFormat, id)
-		if res == nil {
+		res, err := h.RequestToShazam(song, songData.SongFormat, id)
+		if err != nil {
+			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID(err.Error(), id))
 			cancel()
 			continue
 		}
 
-		spotResp := h.SearchInSpotify(res.Track.Title, id)
-		if spotResp == nil {
+		spotResp, err := h.SearchInSpotify(res.Track.Title, id)
+		if err != nil {
+			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID(err.Error(), id))
 			cancel()
 			continue
 		}
 
 		items := spotResp.Tracks.Items
 		if len(items) == 0 {
-			log.Printf("song not found in Spotify, request id: %v\n", id)
+			if err2 := SetFailure(h.reqRepo, id, "song not found in Spotify"); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID("song not found in Spotify", id))
 			cancel()
 			continue
 		}
 
-		reqInDB := h.reqRepo.Get(ctx, id)
-		if reqInDB == nil {
-			log.Printf("song not found in database, request id:%v\n", id)
+		reqsInDB := h.reqRepo.Get(ctx, requestrepo.GetCommand{ID: &id})
+		if len(reqsInDB) > 1 {
+			if err2 := SetFailure(h.reqRepo, id, "multiple requests with same id exist in database"); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID("multiple requests with same id exist in database", id))
+			cancel()
+			continue
+		}
+		if len(reqsInDB) == 0 {
+			if err2 := SetFailure(h.reqRepo, id, "song not found in database"); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID("song not found in database", id))
 			cancel()
 			continue
 		}
 
+		reqInDB := reqsInDB[0]
 		if err := h.reqRepo.Update(ctx, id, model.Request{
 			ID:     id,
 			Email:  reqInDB.Email,
 			Status: string(model.Ready),
 			SongID: items[0].Data.ID,
 		}); err != nil {
-			log.Printf("adding song id in database failed, request id:%v\n", id)
+			if err2 := SetFailure(h.reqRepo, id, "adding song id in database failed"); err2 != nil {
+				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
+			}
+			Log(h.logFile, WrapWithRequestID("adding song id in database failed", id))
 			cancel()
 			continue
 		}
@@ -120,24 +152,22 @@ func (h *RecognizeSongHandler) ReadAndRecognize() {
 	}
 }
 
-func (h *RecognizeSongHandler) ReadSongFromObjectStorage(ctx context.Context, id int) *model.Song {
+func (h *RecognizeSongHandler) ReadSongFromObjectStorage(ctx context.Context, id int) (*model.Song, error) {
 	songData := h.songRepo.Get(ctx, id)
 	if songData == nil {
-		log.Printf("associated song to request with id: %v is nil\n", id)
-		return nil
+		return nil, errors.New("associated song to request is nil")
 	}
 
-	return songData
+	return songData, nil
 }
 
-func (h *RecognizeSongHandler) DecodeBase64(encdStr string, id int) *[]byte {
+func (h *RecognizeSongHandler) DecodeBase64(encdStr string, id int) (*[]byte, error) {
 	song, err := base64.StdEncoding.DecodeString(encdStr)
 	if err != nil {
-		log.Printf("%s, decoding error: %s, request id: %v\n", model.ErrSongDataDecodeFailure.Error(), err.Error(), id)
-		return nil
+		return nil, model.ErrSongDataDecodeFailure
 	}
 
-	return &song
+	return &song, nil
 }
 
 type ShazamTrack struct {
@@ -148,26 +178,23 @@ type ShazamResponse struct {
 	Track ShazamTrack `json:"track"`
 }
 
-func (h *RecognizeSongHandler) RequestToShazam(song *[]byte, songFormat string, id int) *ShazamResponse {
+func (h *RecognizeSongHandler) RequestToShazam(song *[]byte, songFormat string, id int) (*ShazamResponse, error) {
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
 	part, err := writer.CreateFormFile("upload_file", fmt.Sprintf("song.%s", songFormat))
 
 	if err != nil {
-		log.Printf("error creatig form file: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error creatig form file")
 	}
 
 	_, err = part.Write(*song)
 	if err != nil {
-		log.Printf("error writing song data: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error writing song data")
 	}
 
 	err = writer.Close()
 	if err != nil {
-		log.Printf("error closing writer: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error closing writer")
 	}
 
 	// creating an http request
@@ -181,24 +208,21 @@ func (h *RecognizeSongHandler) RequestToShazam(song *[]byte, songFormat string, 
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
-		log.Printf("error sending request or getting response: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error sending request or getting response for Shazam")
 	}
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Printf("error in reading response body: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error in reading response body for Shazam")
 	}
 	res.Body.Close()
 
 	var jsonResp ShazamResponse
 	if err = json.Unmarshal(body, &jsonResp); err != nil {
-		log.Printf("error in unmarshalling Shazam response body: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error in unmarshalling Shazam response body")
 	}
 
-	return &jsonResp
+	return &jsonResp, nil
 }
 
 type SpotifyItemData struct {
@@ -219,7 +243,7 @@ type SpotifySongSearchResponse struct {
 	Tracks SpotifyTracks `json:"tracks"`
 }
 
-func (h *RecognizeSongHandler) SearchInSpotify(title string, id int) *SpotifySongSearchResponse {
+func (h *RecognizeSongHandler) SearchInSpotify(title string, id int) (*SpotifySongSearchResponse, error) {
 	encodedTitle := url.QueryEscape(title)
 	url := fmt.Sprintf("https://spotify23.p.rapidapi.com/search/?q=%s&type=tracks&offset=0&limit=10&numberOfTopResults=5", encodedTitle)
 
@@ -229,22 +253,19 @@ func (h *RecognizeSongHandler) SearchInSpotify(title string, id int) *SpotifySon
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("error in sending request to Spotify or getting response: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error in sending request to Spotify or getting response")
 	}
 
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
-		log.Printf("error in reading body of Spotify response for search by song title: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error in reading body of Spotify response for search by song title")
 	}
 
 	var jsonResp SpotifySongSearchResponse
 	if err = json.Unmarshal(body, &jsonResp); err != nil {
-		log.Printf("error in unmarshalling Spotify response body: %s, request id: %v\n", err.Error(), id)
-		return nil
+		return nil, errors.New("error in unmarshalling Spotify song search response body")
 	}
 
-	return &jsonResp
+	return &jsonResp, nil
 }
