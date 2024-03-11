@@ -3,7 +3,7 @@ package requestrepo
 import (
 	"context"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
 )
 
 type GetCommand struct {

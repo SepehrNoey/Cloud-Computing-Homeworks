@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
 )
 
 func Log(logFile *os.File, msg string) {

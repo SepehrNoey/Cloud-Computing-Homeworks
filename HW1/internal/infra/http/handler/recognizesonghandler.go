@@ -15,9 +15,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/repository/requestrepo"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/domain/repository/songrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/songrepo"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
