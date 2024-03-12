@@ -1,12 +1,14 @@
 package model
 
-import "errors"
+import (
+	"errors"
+)
 
 type Song struct {
-	ID             string
-	ReqID          int
-	SongDataBase64 string
-	SongFormat     string
+	ID             string `json:"id,omitempty"`
+	ReqID          int    `json:"req_id"`
+	SongDataBinary []byte `json:"song_data_binary"`
+	SongFormat     string `json:"song_format"`
 }
 
 var ErrSongSavingFailure = errors.New("couldn't save song in object storage")

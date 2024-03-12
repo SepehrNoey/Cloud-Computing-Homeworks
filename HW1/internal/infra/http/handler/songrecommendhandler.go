@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/requestrepo"
 	"github.com/mailgun/mailgun-go/v4"
 )
 
@@ -33,7 +33,7 @@ func NewSongRecommendHandler(reqRepo requestrepo.Repository, logFile *os.File, m
 }
 
 func (h *SongRecommendHandler) ReadAndEmailSimilar() {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	readyStr := string(model.Ready)
 	notMailed := false
 	reqs := h.reqRepo.Get(ctx, requestrepo.GetCommand{
@@ -63,7 +63,7 @@ func (h *SongRecommendHandler) ReadAndEmailSimilar() {
 			_, _, err2 := h.mg.Send(ctx, failMsg)
 
 			if err2 != nil {
-				h.reqRepo.Update(context.Background(), req.ID, model.Request{
+				h.reqRepo.Update(context.Background(), model.Request{
 					ID:              req.ID,
 					Email:           req.Email,
 					Status:          string(model.Failure),
@@ -74,7 +74,7 @@ func (h *SongRecommendHandler) ReadAndEmailSimilar() {
 				Log(h.logFile, WrapWithRequestID(err2.Error(), req.ID))
 
 			} else {
-				h.reqRepo.Update(ctx, req.ID, model.Request{
+				h.reqRepo.Update(ctx, model.Request{
 					ID:              req.ID,
 					Email:           req.Email,
 					Status:          string(model.Failure),
@@ -99,7 +99,7 @@ func (h *SongRecommendHandler) ReadAndEmailSimilar() {
 		succMsg := h.mg.NewMessage(h.senderEmail, "Song Recommendation Success", string(content), req.Email)
 		_, _, err = h.mg.Send(ctx, succMsg)
 		if err != nil {
-			h.reqRepo.Update(context.Background(), req.ID, model.Request{
+			h.reqRepo.Update(context.Background(), model.Request{
 				ID:              req.ID,
 				Email:           req.Email,
 				Status:          string(model.Failure),
@@ -112,7 +112,7 @@ func (h *SongRecommendHandler) ReadAndEmailSimilar() {
 			continue
 		}
 
-		h.reqRepo.Update(context.Background(), req.ID, model.Request{
+		h.reqRepo.Update(context.Background(), model.Request{
 			ID:              req.ID,
 			Email:           req.Email,
 			Status:          string(model.Done),

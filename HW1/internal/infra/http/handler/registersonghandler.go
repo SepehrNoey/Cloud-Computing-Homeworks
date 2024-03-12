@@ -2,21 +2,22 @@ package handler
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/songrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/songrepo"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type EmailAndSong struct {
 	Email  string `json:"email"`
-	Song   string `json:"song"`
+	Song   string `json:"song_base64"`
 	Format string `json:"format"`
 }
 
@@ -61,10 +62,11 @@ func (h *RegisterSongHandler) RegisterSong(w http.ResponseWriter, r *http.Reques
 	}
 
 	// save song to object storage
+	binaryData, _ := base64.StdEncoding.DecodeString(es.Song)
 	if err := h.songRepo.Create(r.Context(), model.Song{
 		ID:             model.Unknown,
 		ReqID:          model.LastRegisteredRequestID,
-		SongDataBase64: es.Song,
+		SongDataBinary: binaryData,
 		SongFormat:     es.Format,
 	}); err != nil {
 		http.Error(w, model.ErrSongSavingFailure.Error(), http.StatusInternalServerError)
@@ -80,6 +82,7 @@ func (h *RegisterSongHandler) RegisterSong(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 
 	msgBody := fmt.Sprintf("%v", model.LastRegisteredRequestID)
+	fmt.Printf("msgBody to be sent to rabbit is: %v\n", msgBody)
 	err := h.channel.PublishWithContext(ctx,
 		"",
 		h.queue.Name,
@@ -90,6 +93,7 @@ func (h *RegisterSongHandler) RegisterSong(w http.ResponseWriter, r *http.Reques
 			Body:        []byte(msgBody),
 		})
 	if err != nil {
+		fmt.Printf("error occurred pushing message to rabbit: %s\n", err.Error())
 		http.Error(w, model.ErrRequestAddingToQueueFailure.Error(), http.StatusInternalServerError)
 		if err = SetFailure(h.reqRepo, req.ID, model.ErrRequestAddingToQueueFailure.Error()); err != nil {
 			Log(h.logFile, WrapWithRequestID(err.Error(), req.ID))

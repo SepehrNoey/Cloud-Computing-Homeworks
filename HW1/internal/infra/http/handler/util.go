@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/requestrepo"
 )
 
 func Log(logFile *os.File, msg string) {
@@ -30,7 +30,7 @@ func SetFailure(reqRepo requestrepo.Repository, id int, errMsg string) error {
 	}
 	req := reqs[0]
 
-	err := reqRepo.Update(ctx, req.ID, model.Request{
+	err := reqRepo.Update(ctx, model.Request{
 		ID:           req.ID,
 		Email:        req.Email,
 		Status:       string(model.Failure),

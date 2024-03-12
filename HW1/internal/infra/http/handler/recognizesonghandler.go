@@ -3,7 +3,6 @@ package handler
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,9 +14,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/model"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/requestrepo"
-	"github.com/SepehrNoey/Cloud-Computing-Homeworks.git/internal/domain/repository/songrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/model"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/requestrepo"
+	"github.com/SepehrNoey/Cloud-Computing-Homeworks/internal/domain/repository/songrepo"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -75,17 +74,7 @@ func (h *RecognizeSongHandler) ReadAndRecognize() {
 			continue
 		}
 
-		song, err := h.DecodeBase64(songData.SongDataBase64, id)
-		if err != nil {
-			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
-				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
-			}
-			Log(h.logFile, WrapWithRequestID(err.Error(), id))
-			cancel()
-			continue
-		}
-
-		res, err := h.RequestToShazam(song, songData.SongFormat, id)
+		res, err := h.RequestToShazam(&songData.SongDataBinary, songData.SongFormat, id)
 		if err != nil {
 			if err2 := SetFailure(h.reqRepo, id, err.Error()); err2 != nil {
 				Log(h.logFile, WrapWithRequestID(err2.Error(), id))
@@ -134,7 +123,7 @@ func (h *RecognizeSongHandler) ReadAndRecognize() {
 		}
 
 		reqInDB := reqsInDB[0]
-		if err := h.reqRepo.Update(ctx, id, model.Request{
+		if err := h.reqRepo.Update(ctx, model.Request{
 			ID:     id,
 			Email:  reqInDB.Email,
 			Status: string(model.Ready),
@@ -159,15 +148,6 @@ func (h *RecognizeSongHandler) ReadSongFromObjectStorage(ctx context.Context, id
 	}
 
 	return songData, nil
-}
-
-func (h *RecognizeSongHandler) DecodeBase64(encdStr string, id int) (*[]byte, error) {
-	song, err := base64.StdEncoding.DecodeString(encdStr)
-	if err != nil {
-		return nil, model.ErrSongDataDecodeFailure
-	}
-
-	return &song, nil
 }
 
 type ShazamTrack struct {
