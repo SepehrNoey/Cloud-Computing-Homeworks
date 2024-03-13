@@ -123,6 +123,42 @@ func (h *SongRecommendHandler) ReadAndEmailSimilar() {
 	}
 }
 
+func (h *SongRecommendHandler) SendFailEmails() {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	failStr := string(model.Failure)
+	notMailed := false
+	reqs := h.reqRepo.Get(ctx, requestrepo.GetCommand{
+		Status:          &failStr,
+		IsMailAttempted: &notMailed,
+	})
+	cancel()
+
+	// no failure requests to send failure email to
+	if len(reqs) == 0 {
+		cancel()
+		return
+	}
+
+	for _, req := range reqs {
+		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+		failMsg := h.mg.NewMessage(h.senderEmail, "Song Recommendation Failure",
+			fmt.Sprintf("Your request failed due to some error: %s\nRequest ID: %v\nSong ID at Spotify: %s", req.ErrorMessage, req.ID, req.SongID),
+			req.Email)
+
+		h.mg.Send(ctx, failMsg)
+		h.reqRepo.Update(ctx, model.Request{
+			ID:              req.ID,
+			Email:           req.Email,
+			Status:          string(model.Failure),
+			SongID:          req.SongID,
+			ErrorMessage:    req.ErrorMessage,
+			IsMailAttempted: true,
+		})
+
+		cancel()
+	}
+}
+
 type SpotifyRecommendAlbum struct {
 	Name        string `json:"name"`
 	ReleaseDate string `json:"release_date"`

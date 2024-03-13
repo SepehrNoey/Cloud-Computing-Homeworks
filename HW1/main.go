@@ -93,6 +93,7 @@ func main() {
 
 		for range ticker.C {
 			rcmHandler.ReadAndEmailSimilar()
+			rcmHandler.SendFailEmails()
 		}
 	}()
 
