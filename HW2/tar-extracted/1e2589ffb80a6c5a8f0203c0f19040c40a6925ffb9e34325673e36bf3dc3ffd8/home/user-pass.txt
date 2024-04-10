@@ -1,0 +1,7 @@
+username: ali_abolfazl
+password: ajab-passwordie.hamash-gooshte
+
+# See the following links:
+# https://stackoverflow.com/questions/46697980/are-there-ways-to-access-files-removed-from-intermediate-layer-after-docker-1-10
+# https://stackoverflow.com/questions/40575752/docker-extracting-a-layer-from-a-image
+
