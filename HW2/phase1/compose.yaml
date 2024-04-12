@@ -1,0 +1,61 @@
+services:
+  app:
+    image: hw2cloudphase1:latest
+    container_name: myapp
+    environment:
+      - REDIS_HOST=searchnet
+    volumes:
+      - ./:/app
+    networks:
+      - searchnet
+    expose:
+      - 2024
+    ports:
+      - "2024:2024"
+
+  redis:
+    image: redis:latest
+    container_name: myredis
+    volumes:
+      - rds_data:/data
+    networks:
+      - searchnet
+    ports:
+      - "6379:6379"
+
+  elasticsearch:
+    image: elasticsearch:8.12.2
+    container_name: myelastic
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - searchnet
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    
+    
+networks:
+  searchnet:
+    driver: bridge
+
+volumes:
+  es_data:
+    driver: local
+  rds_data:
+    driver: local
