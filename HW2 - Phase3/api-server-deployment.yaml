@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  labels:
+    app: api-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-server
+  template:
+    metadata:
+      labels:
+        app: api-server
+    spec:
+      containers:
+        - name: api-server
+          image: hw2cloudphase3:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2024
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: my-config-map
+          # resources:
+          #   requests:
+          #     memory: "200Mi"
+          #     cpu: "200m"
+          #   limits:
+          #     memory: "1Gi"
+          #     cpu: "1"

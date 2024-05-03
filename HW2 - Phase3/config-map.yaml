@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-config-map
+data:
+  REDIS_DB: "0"
+  REDIS_ADDR: "redis-service:6379"
+  REDIS_PASSWORD: ""
+  ELASTICSEARCH_ADDR: "http://elastic-service:9200"
+  SERVER_LISTEN_ADDR: ":2024"
