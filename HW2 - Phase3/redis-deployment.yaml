@@ -13,22 +13,15 @@ spec:
         app: redis
     spec:
       containers:
-      - name: redis
-        image: redis:latest
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 6379
-        # volumeMounts:
-        # - name: redis-data
-        #   mountPath: /data
-        # resources:
-        #   requests:
-        #     cpu: 100m
-        #     memory: 100Mi
-        #   limits:
-        #     cpu: 100m
-        #     memory: 100Mi
-    # volumes:
-    #   - name: redis-data
-    #     persistentVolumeClaim:
-    #       claimName: redis-data
+        - name: redis
+          image: redis:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: redis-deployment-pvc
+              mountPath: /data
+      volumes:
+        - name: redis-deployment-pvc
+          persistentVolumeClaim:
+            claimName: redis-pv-claim
