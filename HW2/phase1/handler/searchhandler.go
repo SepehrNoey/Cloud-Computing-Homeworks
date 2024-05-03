@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 type Response struct {
 	FoundIn string `json:"found_in"`
 	Data    string `json:"data"`
+	PodIP   string `json:"pod_ip"`
+	PodName string `json:"pod_name"`
 }
 
 type ElasticHits struct {
@@ -53,6 +56,9 @@ func (sh *SearchHandler) SearchMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	podName := os.Getenv("MY_POD_NAME")
+	podIP := os.Getenv("MY_POD_IP")
+
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancelFunc()
 
@@ -62,6 +68,8 @@ func (sh *SearchHandler) SearchMovie(w http.ResponseWriter, r *http.Request) {
 		resp := Response{
 			FoundIn: "Redis",
 			Data:    data,
+			PodIP:   podIP,
+			PodName: podName,
 		}
 		if err = sh.sendJsonResp(resp, w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -116,6 +124,8 @@ func (sh *SearchHandler) SearchMovie(w http.ResponseWriter, r *http.Request) {
 		resp := Response{
 			FoundIn: "Elastic Search Index",
 			Data:    string(esResBody),
+			PodIP:   podIP,
+			PodName: podName,
 		}
 		if err = sh.sendJsonResp(resp, w); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -146,6 +156,8 @@ func (sh *SearchHandler) SearchMovie(w http.ResponseWriter, r *http.Request) {
 	resp := Response{
 		FoundIn: "IMDB Rapid API",
 		Data:    string(jsonRapidHits),
+		PodIP:   podIP,
+		PodName: podName,
 	}
 	if err = sh.sendJsonResp(resp, w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

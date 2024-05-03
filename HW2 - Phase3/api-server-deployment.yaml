@@ -16,21 +16,23 @@ spec:
     spec:
       containers:
         - name: api-server
-          image: hw2cloudphase3:latest
+          image: hw2cloudphase3v2:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 2024
           volumeMounts:
             - name: config-volume
               mountPath: /etc/config
+          env:
+            - name: MY_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: MY_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
       volumes:
         - name: config-volume
           configMap:
             name: my-config-map
-          # resources:
-          #   requests:
-          #     memory: "200Mi"
-          #     cpu: "200m"
-          #   limits:
-          #     memory: "1Gi"
-          #     cpu: "1"
